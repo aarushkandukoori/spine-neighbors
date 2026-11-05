@@ -291,8 +291,11 @@ function renderButtons() {
 }
 
 // ---------- animation ----------
+const STILL = new URLSearchParams(location.search).has('still');   // ?still draws the final state, no animation
+
 function play(withPoints) {
   if (anim) cancelAnimationFrame(anim);
+  if (STILL) { render(1, 1); renderChart(); return; }
   const t0 = performance.now(), sweep = withPoints ? 600 : 0, fit = 900;
   const frame = now => {
     const e = now - t0;
