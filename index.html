@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Can a vertebra borrow from its neighbors?</title>
+<style>
+  body { margin: 0; background: #fff; color: #111; font: 16px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 24px; font-weight: 600; color: #1f3b73; margin: 0 0 4px; }
+  h2 { font-size: 18px; font-weight: 600; color: #1f3b73; margin: 32px 0 8px; }
+  .byline { color: #666; font-size: 14px; margin: 0 0 20px; }
+  canvas { display: block; width: 100%; border: 1px solid #ddd; touch-action: manipulation; }
+  #scene { cursor: pointer; }
+  .legend, .note, .refs { color: #555; font-size: 14px; }
+  .legend { margin: 6px 0 12px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 10px 0; }
+  .levels { display: flex; flex-wrap: wrap; gap: 6px; }
+  button { font: inherit; font-size: 14px; padding: 4px 10px; border: 1px solid #bbb; border-radius: 3px; background: #f7f7f7; color: #111; cursor: pointer; }
+  button:hover { background: #eee; }
+  .levels button.bad { border-color: #c26a1b; }
+  label { font-size: 14px; }
+  input[type=range] { width: 180px; vertical-align: middle; }
+  #summary { font-size: 15px; margin: 8px 0 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; margin: 8px 0; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; font-weight: 600; }
+  td.num { text-align: right; white-space: nowrap; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  .refs p { margin: 4px 0; }
+  code { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Can a vertebra borrow from its neighbors?</h1>
+  <p class="byline">A toy 2D simulation of level-wise spine CT updating from stereovision. Aarush Kandukoori, Carnegie Mellon, November 2026.</p>
+
+  <p>In the stereovision pipelines I read (Cai et al. 2021, Warner et al. 2025), the last step fits each vertebra rigidly to its own surface points. I wanted to see what happens when one level's points are bad or missing, and whether tying each vertebra to its neighbors at the discs helps. Everything here is synthetic and in 2D.</p>
+
+  <p>Click a vertebra (or use the buttons under the picture) to change what the camera sees at that level. The slider sets how strongly each disc holds its two vertebrae together.</p>
+
+  <canvas id="scene" aria-label="Side view of six lumbar vertebrae with stereovision points and two fitted outlines"></canvas>
+  <p class="legend">Side view, animal prone, camera above, head to the left. Gray fill - where the bones really are in the OR. Dots - stereovision points (orange ones sit on soft tissue). Dashed outline - each level fit alone. Blue outline - levels tied at the discs. Short lines inside each body - screw-tip error.</p>
+
+  <div class="controls">
+    <div class="levels" id="levelButtons"></div>
+  </div>
+  <div class="controls">
+    <label for="pull">Disc spring</label>
+    <input id="pull" type="range" min="0" max="100" value="53">
+    <span id="pullText"></span>
+    <button id="newSpine">New spine</button>
+    <button id="replay">Replay</button>
+  </div>
+
+  <canvas id="chart" aria-label="Bar chart of screw-tip error per level"></canvas>
+  <p id="summary"></p>
+
+  <h2>What happens over 300 random spines</h2>
+  <p>Same setup, 300 random spines, one interior level (L2 to L5) affected at a time, medium spring. Numbers are the average screw-tip error.</p>
+  <table>
+    <tr><th>One level has</th><th>Each level alone</th><th>Tied at the discs</th></tr>
+    <tr><td>a 2.5 mm layer of soft tissue on half its surface</td><td class="num">3.1 mm</td><td class="num">1.2 mm</td></tr>
+    <tr><td>only the tip of its spinous process visible</td><td class="num">13.3 mm</td><td class="num">0.6 mm</td></tr>
+    <tr><td>nothing visible (alone, it just keeps the CT position)</td><td class="num">3.6 mm</td><td class="num">0.7 mm</td></tr>
+    <tr><td>the other five levels, all clean</td><td class="num">1.0 mm</td><td class="num">0.8 mm</td></tr>
+  </table>
+  <p id="endsNote">At the ends it helps less. L1 and L6 have only one disc, so a bad end level can still turn about it. Soft tissue at an end level drops from 3.1 to 1.7 mm, but with nothing visible there the error only drops from about 23 to 20 mm.</p>
+  <p>The catch is that the springs only help if they are about as stiff as real discs. The toy's discs slip about 0.4 mm between the CT and the OR. When I let them slip 1.5 mm and kept the same spring, the clean levels got a little worse (about 1.0 to 1.2 mm), while the bad level still improved (3.1 to 1.6 mm with soft tissue). So the stiffness would have to come from real data.</p>
+
+  <h2>Where this toy is wrong</h2>
+  <ul>
+    <li>It is 2D. In 3D, a vertebra held only at its two discs can still spin about the line between them, so the facet joints or some of its own surface would have to pin that down. The hidden-level result is the most optimistic one here.</li>
+    <li>Every vertebra has the same made-up shape, and each disc is a simple spring at one point.</li>
+    <li>"Each level alone" here is plain point-to-plane ICP from five starting angles, not the rectification and 2D registration pipeline in the papers.</li>
+    <li>Soft tissue and blocked views are simple stand-ins, and the screw-tip error stands in for fiducial TRE.</li>
+    <li>The posture change (about 48 degrees of lordosis over L1 to L6) follows Fan et al. 2022. The noise levels are my guesses (1 mm per point, plus a 0.7 mm offset per level for tracking and calibration).</li>
+  </ul>
+
+  <h2>What I would try on real data</h2>
+  <ol>
+    <li>Measure how much neighboring vertebrae actually slip relative to each other between preoperative CT and intraoperative CT in existing scans. That sets the spring.</li>
+    <li>Hide or corrupt one level at a time in existing stereovision data and compare each level alone with the tied fit.</li>
+    <li>Use the gap between a level's own answer and the answer its neighbors imply as a warning that a mask is off. The toy marks a level "check" when the two answers put the screw tip more than 2 mm apart. It needs no ground truth.</li>
+  </ol>
+
+  <h2>References</h2>
+  <div class="refs">
+    <p>Fan X, Mirza SK, Li C, Evans LT, Ji S, Paulsen KD. Accuracy of stereovision-updated versus preoperative CT-based image guidance in multilevel lumbar pedicle screw placement: a cadaveric swine study. JBJS Open Access. 2022;7(1):e21.00129.</p>
+    <p>Cai Y, Wu S, Fan X, Olson J, Evans L, Lollis S, Mirza SK, Paulsen KD, Ji S. A level-wise spine registration framework to account for large pose changes. Int J Comput Assist Radiol Surg. 2021;16(6):943-953.</p>
+    <p>Warner WR, Bhattacharya I, Evans LT, Mirza SK, Paulsen KD, Fan X. Sparse-XM: spine pose adjustment with RGB-D bone segmentation via cross-modality label transfer. MICCAI 2025.</p>
+    <p>Gill S, Abolmaesumi P, Fichtinger G, Boisvert J, Pichora D, Borschneck D, Mousavi P. Biomechanically constrained groupwise ultrasound to CT registration of the lumbar spine. Med Image Anal. 2012;16(3):662-674.</p>
+  </div>
+  <p class="note">Code - <a href="sim.js">sim.js</a> has the spine, the camera and both fits (no libraries). Synthetic data only; nothing here comes from real scans.</p>
+</main>
+
+<script src="sim.js"></script>
+<script>
+// ---------- state ----------
+const ACCENT = '#1f4e9c', TISSUE = '#c26a1b', FLAG = '#b3261e';
+const state = {
+  seed: 31,
+  views: ['clean', 'soft tissue', 'clean', 'hidden', 'clean', 'clean'],
+  pos: 53,
+};
+let theCase = null, run = null, anim = null;
+
+const scene = document.getElementById('scene'), chart = document.getElementById('chart');
+const pull = document.getElementById('pull'), pullText = document.getElementById('pullText');
+
+// slider position (0-100) -> spring weight. 0 means the levels are not tied at all.
+const springWeight = pos => (pos === 0 ? 0 : 0.5 * Math.pow(1000, pos / 100));
+const springName = pos => (pos === 0 ? 'off (each level alone)' : pos < 35 ? 'loose' : pos < 70 ? 'medium' : 'stiff');
+
+// ---------- running the model ----------
+function recompute(all) {
+  const w = springWeight(state.pos);
+  if (all || !run) {
+    theCase = makeCase(state.seed);
+    run = runCase(theCase, state.views, w);
+  } else {
+    // only the spring changed: keep the points and the "alone" fit, redo the tied fit
+    run.linked = w === 0 ? run.alone : fitLevels(run.points, run.alone, w);
+    run.err.linked = tipErrors(run.linked, theCase.or);
+  }
+  if (w === 0) { run.linked = run.alone; run.err.linked = run.err.alone; }
+}
+
+// ---------- drawing ----------
+function sizeCanvas(c, ratio) {
+  const w = c.clientWidth, h = Math.round(w * ratio), d = window.devicePixelRatio || 1;
+  c.width = w * d; c.height = h * d; c.style.height = h + 'px';
+  const ctx = c.getContext('2d');
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+  return { ctx, w, h };
+}
+
+function view(w, h) {
+  // fit every pose we might draw into the canvas
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const poses of [theCase.or, run.whole, run.alone, run.linked]) {
+    poses.forEach(P => [...BODY, ...ARCH].forEach(p => {
+      const q = apply(P, p);
+      x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]);
+    }));
+  }
+  const pad = 10;
+  x0 -= pad; x1 += pad; y0 -= pad + 16; y1 += pad + 8;
+  const s = Math.min(w / (x1 - x0), h / (y1 - y0));
+  const ox = (w - s * (x1 - x0)) / 2, oy = (h - s * (y1 - y0)) / 2;
+  return { s, toScreen: p => [ox + (p[0] - x0) * s, oy + (y1 - p[1]) * s], toWorld: (sx, sy) => [x0 + (sx - ox) / s, y1 - (sy - oy) / s] };
+}
+
+function shapePath(ctx, V, P, shape) {
+  shape.forEach((p, i) => {
+    const q = V.toScreen(apply(P, p));
+    if (i === 0) ctx.moveTo(q[0], q[1]); else ctx.lineTo(q[0], q[1]);
+  });
+  ctx.closePath();
+}
+function drawBone(ctx, V, P, fill, stroke, dash, width) {
+  for (const shape of [BODY, ARCH]) {
+    ctx.beginPath(); shapePath(ctx, V, P, shape);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.setLineDash(dash || []); ctx.strokeStyle = stroke; ctx.lineWidth = width || 1; ctx.stroke(); ctx.setLineDash([]); }
+  }
+}
+
+const lerpPose = (A, B, t) => ({ x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t, a: A.a + (B.a - A.a) * t });
+const ease = t => 1 - Math.pow(1 - t, 3);
+
+let V = null;
+function render(pointsShown = 1, t = 1) {
+  const { ctx, w, h } = sizeCanvas(scene, scene.clientWidth < 520 ? 0.52 : 0.46);
+  V = view(w, h);
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = '12px -apple-system, Helvetica, Arial, sans-serif';
+  ctx.fillStyle = '#888';
+  ctx.fillText('stereo camera above', 8, 16);
+
+  // where the bones really are
+  theCase.or.forEach(P => drawBone(ctx, V, P, '#e4e4e4', '#c8c8c8'));
+
+  // stereovision points, swept in from the head end
+  const xs = run.points.map(p => p.x), xmin = Math.min(...xs), xmax = Math.max(...xs);
+  for (const p of run.points) {
+    if ((p.x - xmin) / (xmax - xmin + 1e-9) > pointsShown) continue;
+    const q = V.toScreen([p.x, p.y]);
+    ctx.fillStyle = p.tissue ? TISSUE : 'rgba(0,0,0,0.65)';
+    ctx.beginPath(); ctx.arc(q[0], q[1], 1.4, 0, 2 * Math.PI); ctx.fill();
+  }
+
+  // the two fits, moving from the whole-spine CT pose to their answers
+  const k = ease(t);
+  const alone = run.alone.map((P, i) => lerpPose(run.whole[i], P, k));
+  const linked = run.linked.map((P, i) => lerpPose(run.whole[i], P, k));
+  alone.forEach(P => drawBone(ctx, V, P, null, '#444', [4, 3], 1));
+  if (springWeight(state.pos) > 0) linked.forEach(P => drawBone(ctx, V, P, null, ACCENT, null, 1.6));
+
+  // screw-tip error lines, level labels and flags
+  const narrow = w < 520;
+  for (let i = 0; i < N_LEVELS; i++) {
+    const truth = V.toScreen(apply(theCase.or[i], TIP));
+    const a = V.toScreen(apply(alone[i], TIP)), b = V.toScreen(apply(linked[i], TIP));
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#444'; ctx.beginPath(); ctx.moveTo(truth[0], truth[1]); ctx.lineTo(a[0], a[1]); ctx.stroke();
+    if (springWeight(state.pos) > 0) { ctx.strokeStyle = ACCENT; ctx.beginPath(); ctx.moveTo(truth[0], truth[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(truth[0], truth[1], 2, 0, 2 * Math.PI); ctx.fill();
+
+    const base = V.toScreen(apply(theCase.or[i], [0, -9]));
+    ctx.textAlign = 'center'; ctx.fillStyle = '#111';
+    ctx.fillText('L' + (i + 1), base[0], base[1] + 15);
+    if (state.views[i] !== 'clean') { ctx.fillStyle = TISSUE; ctx.fillText(state.views[i], base[0], base[1] + 29); }
+    if (!narrow && t >= 1) {
+      ctx.fillStyle = '#555';
+      const txt = springWeight(state.pos) > 0 ? run.err.alone[i].toFixed(1) + ' / ' + run.err.linked[i].toFixed(1) + ' mm' : run.err.alone[i].toFixed(1) + ' mm';
+      ctx.fillText(txt, base[0], base[1] + (state.views[i] !== 'clean' ? 43 : 29));
+    }
+    // flag: the level's own answer and the tied answer disagree by more than 2 mm at the screw tip
+    if (t >= 1 && springWeight(state.pos) > 0) {
+      const ta = apply(run.alone[i], TIP), tb = apply(run.linked[i], TIP);
+      if (Math.hypot(ta[0] - tb[0], ta[1] - tb[1]) > 2) {
+        const top = V.toScreen(apply(theCase.or[i], [0, 46]));
+        ctx.fillStyle = FLAG; ctx.font = '600 12px -apple-system, Helvetica, Arial, sans-serif';
+        ctx.fillText('check', top[0], top[1] - 6);
+        ctx.font = '12px -apple-system, Helvetica, Arial, sans-serif';
+      }
+    }
+  }
+  ctx.textAlign = 'left';
+}
+
+function renderChart() {
+  const { ctx, w, h } = sizeCanvas(chart, chart.clientWidth < 520 ? 0.5 : 0.3);
+  ctx.clearRect(0, 0, w, h);
+  const small = w < 520;
+  ctx.font = (small ? '10px' : '12px') + ' -apple-system, Helvetica, Arial, sans-serif';
+  const left = 34, right = 8, top = 22, bottom = 26, ymax = 6;
+  const plotH = h - top - bottom, plotW = w - left - right;
+  const y = v => top + plotH * (1 - Math.min(v, ymax) / ymax);
+  ctx.fillStyle = '#555';
+  ctx.fillText('Screw-tip error (mm)', left, 13);
+  ctx.strokeStyle = '#e5e5e5'; ctx.lineWidth = 1;
+  for (let v = 0; v <= ymax; v += 2) {
+    ctx.beginPath(); ctx.moveTo(left, y(v)); ctx.lineTo(w - right, y(v)); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillStyle = '#777'; ctx.fillText(String(v), left - 6, y(v) + 4);
+  }
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = '#999';
+  ctx.beginPath(); ctx.moveTo(left, y(2)); ctx.lineTo(w - right, y(2)); ctx.stroke(); ctx.setLineDash([]);
+  const tied = springWeight(state.pos) > 0;
+  const group = plotW / N_LEVELS, bw = Math.min(22, group / 3.2);
+  for (let i = 0; i < N_LEVELS; i++) {
+    const cx = left + group * (i + 0.5);
+    const gap = small ? 0.68 : 0.55;
+    const bars = tied ? [[run.err.alone[i], '#9a9a9a', -bw * gap], [run.err.linked[i], ACCENT, bw * gap]] : [[run.err.alone[i], '#9a9a9a', 0]];
+    for (const [v, color, dx] of bars) {
+      ctx.fillStyle = color;
+      ctx.fillRect(cx + dx - bw / 2, y(v), bw, y(0) - y(v));
+      if (v > ymax) {                       // bar is cut off: draw a white break near the top
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(cx + dx - bw / 2 - 1, y(ymax) + 8, bw + 2, 3);
+      }
+      ctx.textAlign = 'center'; ctx.fillStyle = '#333';
+      ctx.fillText(v.toFixed(1), cx + dx, y(v) - 4);
+    }
+    ctx.fillStyle = '#111'; ctx.fillText('L' + (i + 1), cx, h - 8);
+  }
+  ctx.textAlign = 'left';
+
+  const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+  document.getElementById('summary').textContent =
+    'Average over the six levels: CT not updated ' + mean(run.err.whole).toFixed(1) + ' mm, each level alone ' +
+    mean(run.err.alone).toFixed(1) + ' mm' + (tied ? ', tied at the discs ' + mean(run.err.linked).toFixed(1) + ' mm.' : '.') +
+    (tied ? ' Gray bars - alone. Blue bars - tied.' : ' Gray bars - alone.') + ' Dashed line - 2 mm.';
+}
+
+function renderButtons() {
+  const box = document.getElementById('levelButtons');
+  box.innerHTML = '';
+  state.views.forEach((v, i) => {
+    const b = document.createElement('button');
+    b.textContent = 'L' + (i + 1) + ' ' + v;
+    if (v !== 'clean') b.className = 'bad';
+    b.onclick = () => cycleLevel(i);
+    box.appendChild(b);
+  });
+  pullText.textContent = springName(state.pos);
+}
+
+// ---------- animation ----------
+function play(withPoints) {
+  if (anim) cancelAnimationFrame(anim);
+  const t0 = performance.now(), sweep = withPoints ? 600 : 0, fit = 900;
+  const frame = now => {
+    const e = now - t0;
+    const pts = sweep ? Math.min(1, e / sweep) : 1;
+    const t = Math.max(0, Math.min(1, (e - sweep) / fit));
+    render(pts, t);
+    if (t < 1) anim = requestAnimationFrame(frame);
+    else { anim = null; renderChart(); }
+  };
+  anim = requestAnimationFrame(frame);
+}
+
+function refreshAll(withPoints) {
+  recompute(true);
+  renderButtons();
+  renderChart();
+  play(withPoints);
+}
+
+function cycleLevel(i) {
+  state.views[i] = VIEWS[(VIEWS.indexOf(state.views[i]) + 1) % VIEWS.length];
+  refreshAll(false);
+}
+
+// ---------- events ----------
+scene.addEventListener('click', ev => {
+  if (!V) return;
+  const r = scene.getBoundingClientRect();
+  const p = V.toWorld(ev.clientX - r.left, ev.clientY - r.top);
+  let best = 0;
+  theCase.or.forEach((P, i) => { if (Math.abs(P.x - p[0]) < Math.abs(theCase.or[best].x - p[0])) best = i; });
+  cycleLevel(best);
+});
+pull.addEventListener('input', () => {
+  state.pos = +pull.value;
+  recompute(false);
+  pullText.textContent = springName(state.pos);
+  render(1, 1);
+  renderChart();
+});
+document.getElementById('newSpine').onclick = () => { state.seed = 1 + Math.floor(Math.random() * 100000); refreshAll(true); };
+document.getElementById('replay').onclick = () => play(true);
+window.addEventListener('resize', () => { if (!anim) { render(1, 1); renderChart(); } });
+
+refreshAll(true);
+</script>
+</body>
+</html>
